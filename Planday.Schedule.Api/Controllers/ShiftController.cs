@@ -28,16 +28,17 @@ namespace Planday.Schedule.Api.Controllers
 
         [HttpGet]
         [Route("/getShiftById")]
-        public IActionResult GetShiftById(long shiftId) 
+        public async Task<IActionResult> GetShiftById(long shiftId)
         {
-            var shift = _getAllShiftsQuery.QueryAsync().Result.FirstOrDefault(s => s.Id == shiftId);
+            var shifts = await _getAllShiftsQuery.QueryAsync();
+            var shift = shifts.FirstOrDefault(s => s.Id == shiftId);
 
             if (shift is null) return NotFound();
 
             var client = new HttpClient();
             client.DefaultRequestHeaders.Add("Authorization", "8e0ac353-5ef1-4128-9687-fb9eb8647288");
-            var response = client.GetAsync($"http://20.101.230.231:5000/employee/{shift?.EmployeeId}").Result;
-            var employeeDto = JsonConvert.DeserializeObject<EmployeeDto>(response.Content.ReadAsStringAsync().Result);
+            var response = await client.GetAsync($"http://20.101.230.231:5000/employee/{shift?.EmployeeId}");
+            var employeeDto = JsonConvert.DeserializeObject<EmployeeDto>(await response.Content.ReadAsStringAsync());
 
             return employeeDto is null ? Ok(shift) : Ok(new ShiftEmployeeDto(shift.Id, shift.EmployeeId, shift.Start, shift.End, employeeDto.Email));
         }
@@ -61,14 +62,15 @@ namespace Planday.Schedule.Api.Controllers
 
         [HttpPost]
         [Route("/assignShiftToEmployee")]
-        public IActionResult AssignShiftToEmployee(long shiftId, long employeeId)
+        public async Task<IActionResult> AssignShiftToEmployee(long shiftId, long employeeId)
         {
-            var employee = Task.Run(() => _getAllEmployeesQuery.QueryAsync()).Result.FirstOrDefault(e => e.Id == employeeId);
+            var employees = await _getAllEmployeesQuery.QueryAsync();
+            var employee = employees.FirstOrDefault(e => e.Id == employeeId);
             if (employee is null) return BadRequest($"There is no employee with ID {employeeId}");
-            var shift = Task.Run(() => _getAllShiftsQuery.QueryAsync()).Result.FirstOrDefault(s => s.Id == shiftId);
+            var shifts = await _getAllShiftsQuery.QueryAsync();
+            var shift = shifts.FirstOrDefault(s => s.Id == shiftId);
             if (shift is null) return BadRequest($"There is no shift with ID {shiftId}");
-
-            var shifts = Task.Run(() => _getAllShiftsQuery.QueryAsync()).Result;
+            
             foreach (var s in shifts)
             {
                 if (s.EmployeeId != employeeId)
