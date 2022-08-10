@@ -1,5 +1,7 @@
 using System.Data.SQLite;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using Planday.Schedule.Queries;
 
 namespace Planday.Schedule.Api.Controllers
@@ -25,21 +27,30 @@ namespace Planday.Schedule.Api.Controllers
         }
 
         [HttpGet]
-        public IActionResult Get(long shiftId) 
+        [Route("/getShiftById")]
+        public IActionResult GetShiftById(long shiftId) 
         {
-            var shift = Task.Run(() => _getAllShiftsQuery.QueryAsync()).Result.FirstOrDefault(s => s.Id == shiftId);
-            return shift is null ? NotFound() : Ok(shift);
+            var shift = _getAllShiftsQuery.QueryAsync().Result.FirstOrDefault(s => s.Id == shiftId);
+
+            if (shift is null) return NotFound();
+
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("Authorization", "8e0ac353-5ef1-4128-9687-fb9eb8647288");
+            var response = client.GetAsync($"http://20.101.230.231:5000/employee/{shift?.EmployeeId}").Result;
+            var employeeDto = JsonConvert.DeserializeObject<EmployeeDto>(response.Content.ReadAsStringAsync().Result);
+
+            return employeeDto is null ? Ok(shift) : Ok(new ShiftEmployeeDto(shift.Id, shift.EmployeeId, shift.Start, shift.End, employeeDto.Email));
         }
 
         [HttpPost]
-        [Route("/create-open-shift")]
+        [Route("/createOpenShift")]
         public IActionResult CreateOpenShift(Shift shift)
         {
             if (shift.Start > shift.End) return BadRequest("The start time must not be greater than the end time");
             if (shift.Start.Date != shift.End.Date) return BadRequest("Start and end time should be in the same day");
             try
             {
-                Task.Run(() => _postOpenShiftQuery.ExecuteAsync(shift));
+                _postOpenShiftQuery.ExecuteAsync(shift);
                 return Ok("Shift created successfully");
             }
             catch (SQLiteException e)
@@ -49,7 +60,7 @@ namespace Planday.Schedule.Api.Controllers
         }
 
         [HttpPost]
-        [Route("/assign-shift-to-employee")]
+        [Route("/assignShiftToEmployee")]
         public IActionResult AssignShiftToEmployee(long shiftId, long employeeId)
         {
             var employee = Task.Run(() => _getAllEmployeesQuery.QueryAsync()).Result.FirstOrDefault(e => e.Id == employeeId);
@@ -73,7 +84,7 @@ namespace Planday.Schedule.Api.Controllers
 
             try
             {
-                Task.Run(() => _updateShiftQuery.ExecuteAsync(shiftId, employeeId));
+                _updateShiftQuery.ExecuteAsync(shiftId, employeeId);
                 return Ok("Shift assigned successfully");
             }
             catch (SQLiteException e)
@@ -81,6 +92,10 @@ namespace Planday.Schedule.Api.Controllers
                 return Conflict(e.Message);
             }
         }
+
+        private record EmployeeDto(string Name, string Email);
+
+        private record ShiftEmployeeDto(long Id, long? EmployeeId, DateTime Start, DateTime End, string Email);
     }    
 }
 
