@@ -1,3 +1,4 @@
+using Planday.Schedule.Api.Services;
 using Planday.Schedule.Infrastructure.Providers;
 using Planday.Schedule.Infrastructure.Providers.Interfaces;
 using Planday.Schedule.Infrastructure.Queries;
@@ -15,6 +16,7 @@ builder.Services.AddScoped<IGetAllShiftsQuery, GetAllShiftsQuery>();
 builder.Services.AddScoped<IPostOpenShiftQuery, PostOpenShiftQuery>();
 builder.Services.AddScoped<IGetAllEmployeesQuery, GetAllEmployeesQuery>();
 builder.Services.AddScoped<IUpdateShiftQuery, UpdateShiftQuery>();
+builder.Services.AddScoped<IShiftService, ShiftService>();
 
 var app = builder.Build();
 
