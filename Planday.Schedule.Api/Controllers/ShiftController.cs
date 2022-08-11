@@ -1,8 +1,7 @@
 using System.Data.SQLite;
-using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
-using Planday.Schedule.Queries;
+using Planday.Schedule.Api.Services;
 
 namespace Planday.Schedule.Api.Controllers
 {
@@ -10,27 +9,17 @@ namespace Planday.Schedule.Api.Controllers
     [Route("[controller]")]
     public class ShiftController : ControllerBase
     {
-        private readonly IGetAllShiftsQuery _getAllShiftsQuery;
-        private readonly IGetAllEmployeesQuery _getAllEmployeesQuery;
-        private readonly IPostOpenShiftQuery _postOpenShiftQuery;
-        private readonly IUpdateShiftQuery _updateShiftQuery;
-        public ShiftController(
-            IGetAllShiftsQuery getAllShiftsQuery,
-            IGetAllEmployeesQuery getAllEmployeesQuery,
-            IPostOpenShiftQuery postOpenShiftQuery,
-            IUpdateShiftQuery updateShiftQuery)
+        private readonly IShiftService _shiftService;
+        public ShiftController(IShiftService shiftService)
         {
-            _getAllShiftsQuery = getAllShiftsQuery;
-            _getAllEmployeesQuery = getAllEmployeesQuery;
-            _postOpenShiftQuery = postOpenShiftQuery;
-            _updateShiftQuery = updateShiftQuery;
+            _shiftService = shiftService;
         }
 
         [HttpGet]
         [Route("/getShiftById")]
         public async Task<IActionResult> GetShiftById(long shiftId)
         {
-            var shifts = await _getAllShiftsQuery.QueryAsync();
+            var shifts = await _shiftService.getAllShifts();
             var shift = shifts.FirstOrDefault(s => s.Id == shiftId);
 
             if (shift is null) return NotFound();
@@ -51,7 +40,7 @@ namespace Planday.Schedule.Api.Controllers
             if (shift.Start.Date != shift.End.Date) return BadRequest("Start and end time should be in the same day");
             try
             {
-                _postOpenShiftQuery.ExecuteAsync(shift);
+                _shiftService.postOpenShift(shift);
                 return Ok("Shift created successfully");
             }
             catch (SQLiteException e)
@@ -64,10 +53,10 @@ namespace Planday.Schedule.Api.Controllers
         [Route("/assignShiftToEmployee")]
         public async Task<IActionResult> AssignShiftToEmployee(long shiftId, long employeeId)
         {
-            var employees = await _getAllEmployeesQuery.QueryAsync();
+            var employees = await _shiftService.getAllEmployees();
             var employee = employees.FirstOrDefault(e => e.Id == employeeId);
             if (employee is null) return BadRequest($"There is no employee with ID {employeeId}");
-            var shifts = await _getAllShiftsQuery.QueryAsync();
+            var shifts = await _shiftService.getAllShifts();
             var shift = shifts.FirstOrDefault(s => s.Id == shiftId);
             if (shift is null) return BadRequest($"There is no shift with ID {shiftId}");
             
@@ -81,12 +70,12 @@ namespace Planday.Schedule.Api.Controllers
                 }
                 if (s.Id == shiftId) return BadRequest($"Employee {employee.Name} has already assigned this Shift");
                 if (shift.Start < s.End && s.Start < shift.End) 
-                    return BadRequest($"Shifts are overlapping");
+                    return BadRequest("Shifts are overlapping");
             }
 
             try
             {
-                _updateShiftQuery.ExecuteAsync(shiftId, employeeId);
+                _shiftService.updateShift(shiftId, employeeId);
                 return Ok("Shift assigned successfully");
             }
             catch (SQLiteException e)
